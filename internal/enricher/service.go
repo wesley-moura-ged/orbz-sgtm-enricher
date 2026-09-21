@@ -42,7 +42,7 @@ func (s *Service) health(w http.ResponseWriter, _ *http.Request) {
 // the request; a successful 204 instructs Traefik to continue the original one.
 func (s *Service) authorize(w http.ResponseWriter, r *http.Request) {
 	ip, ok := clientIP(r)
-	if !ok || !ip.IsGlobalUnicast() {
+	if !ok || !isPublicIP(ip) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -55,6 +55,20 @@ func (s *Service) authorize(w http.ResponseWriter, r *http.Request) {
 	setHeaderIfPresent(w, HeaderPostal, geo.PostalCode)
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func isPublicIP(ip netip.Addr) bool {
+	if !ip.IsValid() || !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+		return false
+	}
+
+	// 100.64.0.0/10 is shared carrier-grade NAT space and does not identify
+	// a public browser address reliably.
+	if ip.Is4() {
+		bytes := ip.As4()
+		return !(bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127)
+	}
+	return true
 }
 
 func clientIP(r *http.Request) (netip.Addr, bool) {
