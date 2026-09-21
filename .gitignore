@@ -1,0 +1,13 @@
+# Go
+bin/
+coverage.out
+
+# Local GeoLite2 database. It is downloaded only in the server volume.
+*.mmdb
+
+# Local secrets and editor files
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
