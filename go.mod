@@ -1,5 +1,5 @@
 module github.com/wesley-moura-ged/orbz-sgtm-enricher
 
-go 1.25
+go 1.24.0
 
-require github.com/oschwald/geoip2-golang/v2 v2.0.0
+require github.com/oschwald/geoip2-golang/v2 v2.1.0
