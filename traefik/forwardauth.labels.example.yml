@@ -1,0 +1,14 @@
+# Add these labels to the GTM Server service and, during validation, to the
+# Caddy debug service. Do not expose orbz_enricher through a public router.
+
+labels:
+  - "traefik.http.middlewares.orbz-enricher.forwardauth.address=http://<STACK_NAME>_orbz_enricher:8080/auth"
+  - "traefik.http.middlewares.orbz-enricher.forwardauth.trustForwardHeader=true"
+  - "traefik.http.middlewares.orbz-enricher.forwardauth.authResponseHeaders=X-Orbz-User-Id,X-GEO-Country,X-GEO-Region,X-GEO-City,X-GEO-PostalCode"
+
+  # Append this middleware to the existing router middleware list.
+  - "traefik.http.routers.<ROUTER_NAME>.middlewares=orbz-enricher@docker"
+
+# Security prerequisite: configure Traefik entrypoints so it accepts forwarded
+# headers only from trusted load balancers. Do not enable trustForwardHeader
+# until that configuration is in place.
