@@ -15,12 +15,18 @@ type Config struct {
 }
 
 func LoadConfig() (Config, error) {
-	secretPath := envOrDefault("USER_ID_SECRET_FILE", defaultSecretPath)
-	secret, err := os.ReadFile(secretPath)
-	if err != nil {
-		return Config{}, fmt.Errorf("read user ID secret: %w", err)
+	// USER_ID_SECRET allows deployment platforms such as Dokploy to provide the
+	// HMAC through their protected Environment editor. USER_ID_SECRET_FILE keeps
+	// compatibility with existing Docker Swarm deployments that use Secrets.
+	secret := []byte(strings.TrimSpace(os.Getenv("USER_ID_SECRET")))
+	if len(secret) == 0 {
+		secretPath := envOrDefault("USER_ID_SECRET_FILE", defaultSecretPath)
+		fromFile, err := os.ReadFile(secretPath)
+		if err != nil {
+			return Config{}, fmt.Errorf("read user ID secret: %w", err)
+		}
+		secret = []byte(strings.TrimSpace(string(fromFile)))
 	}
-	secret = []byte(strings.TrimSpace(string(secret)))
 	if len(secret) < 32 {
 		return Config{}, fmt.Errorf("user ID secret must contain at least 32 bytes")
 	}
