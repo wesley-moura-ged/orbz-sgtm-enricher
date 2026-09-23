@@ -1,6 +1,6 @@
 # Compile the official MaxMind client instead of depending on an operating
 # system package whose availability varies between distributions.
-FROM golang:1.25-bookworm AS geoipupdate-build
+FROM golang:1.27-bookworm AS geoipupdate-build
 
 RUN go install github.com/maxmind/geoipupdate/v8/cmd/geoipupdate@v8.0.0
 
