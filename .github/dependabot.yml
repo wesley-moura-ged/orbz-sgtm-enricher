@@ -1,0 +1,20 @@
+version: 2
+
+updates:
+  # Atualiza dependências do projeto Go.
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Atualiza imagens-base usadas nos Dockerfiles.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Atualiza as Actions usadas no pipeline de publicação.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
