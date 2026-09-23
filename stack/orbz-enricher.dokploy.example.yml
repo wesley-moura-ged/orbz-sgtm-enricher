@@ -1,0 +1,74 @@
+# Stack for Dokploy / Docker Swarm.
+# Set all variables in Dokploy Environment. Do not place real credentials here.
+version: "3.8"
+
+services:
+  orbz_enricher:
+    image: ${ORBZ_ENRICHER_IMAGE:?Configure ORBZ_ENRICHER_IMAGE in Environment}
+    hostname: "{{.Service.Name}}.{{.Task.Slot}}"
+    networks:
+      - traefik_public
+    environment:
+      LISTEN_ADDRESS: ":8080"
+      GEOIP_DATABASE_PATH: "/data/GeoLite2-City.mmdb"
+      # Dokploy protected Environment variable; takes precedence over a Secret file.
+      USER_ID_SECRET: "${ORBZ_USER_ID_HMAC:?Configure ORBZ_USER_ID_HMAC in Environment}"
+    volumes:
+      - geoip_data:/data:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 30s
+      labels:
+        - "traefik.enable=false"
+
+  geoip_updater:
+    image: ${ORBZ_GEOIP_UPDATER_IMAGE:?Configure ORBZ_GEOIP_UPDATER_IMAGE in Environment}
+    hostname: "{{.Service.Name}}.{{.Task.Slot}}"
+    networks:
+      - traefik_public
+    environment:
+      GEOIP_DATABASE_PATH: "/data"
+      GEOIPUPDATE_FREQUENCY_SECONDS: "259200"
+      # Dokploy protected Environment variables; they take precedence over Secret files.
+      MAXMIND_ACCOUNT_ID: "${MAXMIND_ACCOUNT_ID:?Configure MAXMIND_ACCOUNT_ID in Environment}"
+      MAXMIND_LICENSE_KEY: "${MAXMIND_LICENSE_KEY:?Configure MAXMIND_LICENSE_KEY in Environment}"
+    volumes:
+      - geoip_data:/data
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+      restart_policy:
+        condition: any
+        delay: 10s
+        window: 30s
+      labels:
+        - "traefik.enable=false"
+
+networks:
+  # Name of the public Dokploy / Traefik network.
+  traefik_public:
+    external: true
+    name: ${TRAEFIK_NETWORK:-dokploy-network}
+
+volumes:
+  # Persistent GeoLite2 database shared by the services.
+  geoip_data:
+    name: orbz_geoip_data

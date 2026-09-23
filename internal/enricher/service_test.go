@@ -6,6 +6,19 @@ import (
 	"testing"
 )
 
+func TestLoadConfigAcceptsEnvironmentSecret(t *testing.T) {
+	t.Setenv("USER_ID_SECRET", "12345678901234567890123456789012")
+	t.Setenv("USER_ID_SECRET_FILE", "/this-file-must-not-be-read")
+
+	config, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if string(config.UserIDSecret) != "12345678901234567890123456789012" {
+		t.Fatalf("unexpected user ID secret: %q", config.UserIDSecret)
+	}
+}
+
 func TestClientIPUsesFirstForwardedAddress(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://enricher/auth", nil)
 	req.Header.Set("X-Forwarded-For", "203.0.113.9, 10.0.0.1")

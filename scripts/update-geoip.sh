@@ -1,13 +1,25 @@
 #!/bin/sh
 set -eu
 
-account_id_file="${MAXMIND_ACCOUNT_ID_FILE:-/run/secrets/maxmind_account_id}"
-license_key_file="${MAXMIND_LICENSE_KEY_FILE:-/run/secrets/maxmind_license_key}"
 database_directory="${GEOIP_DATABASE_PATH:-/data}"
 frequency_seconds="${GEOIPUPDATE_FREQUENCY_SECONDS:-259200}"
 
-account_id="$(tr -d '\r\n' < "$account_id_file")"
-license_key="$(tr -d '\r\n' < "$license_key_file")"
+# Dokploy can pass these credentials through its protected Environment editor.
+# The *_FILE variants keep compatibility with existing Docker Swarm Secrets.
+read_credential() {
+  value="$1"
+  file_path="$2"
+
+  if [ -n "$value" ]; then
+    printf '%s' "$value"
+    return
+  fi
+
+  tr -d '\r\n' < "$file_path"
+}
+
+account_id="$(read_credential "${MAXMIND_ACCOUNT_ID:-}" "${MAXMIND_ACCOUNT_ID_FILE:-/run/secrets/maxmind_account_id}")"
+license_key="$(read_credential "${MAXMIND_LICENSE_KEY:-}" "${MAXMIND_LICENSE_KEY_FILE:-/run/secrets/maxmind_license_key}")"
 
 if [ -z "$account_id" ] || [ -z "$license_key" ]; then
   echo "MaxMind credentials are empty" >&2
