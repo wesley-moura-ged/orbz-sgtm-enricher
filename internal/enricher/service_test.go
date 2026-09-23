@@ -1,10 +1,7 @@
 package enricher
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
-	"net/http"
+	"net/netip"
 	"net/http/httptest"
 	"testing"
 )
@@ -22,49 +19,45 @@ func TestLoadConfigAcceptsEnvironmentSecret(t *testing.T) {
 	}
 }
 
-func TestForwardAuthEnrichesRequest(t *testing.T) {
-	secret := []byte("test-secret-that-has-more-than-thirty-two-characters")
-	service := NewService(Config{
-		GeoIPDatabasePath: "",
-		UserIDSecret:      secret,
-	})
+func TestClientIPUsesFirstForwardedAddress(t *testing.T) {
+	req := httptest.NewRequest("GET", "http://enricher/auth", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.9, 10.0.0.1")
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/?sck=abc", nil)
-	req.RemoteAddr = "203.0.113.1:1234"
-	recorder := httptest.NewRecorder()
-
-	service.ForwardAuth(recorder, req)
-
-	response := recorder.Result()
-	if response.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d, want %d", response.StatusCode, http.StatusOK)
-	}
-
-	expectedMAC := hmac.New(sha256.New, secret)
-	_, _ = expectedMAC.Write([]byte("abc"))
-	expectedID := hex.EncodeToString(expectedMAC.Sum(nil))
-
-	if got := response.Header.Get("X-Orbz-User-Id"); got != expectedID {
-		t.Fatalf("X-Orbz-User-Id = %q, want %q", got, expectedID)
-	}
-
-	if got := response.Header.Get("X-Orbz-Geo-Status"); got != "unavailable" {
-		t.Fatalf("X-Orbz-Geo-Status = %q, want unavailable", got)
+	ip, ok := clientIP(req)
+	if !ok || ip.String() != "203.0.113.9" {
+		t.Fatalf("unexpected client IP: %v, valid: %v", ip, ok)
 	}
 }
 
-func TestForwardAuthWithoutSCKDoesNotSetUserID(t *testing.T) {
-	service := NewService(Config{
-		UserIDSecret: []byte("test-secret-that-has-more-than-thirty-two-characters"),
-	})
+func TestUserIDIsStableAndDoesNotExposeInput(t *testing.T) {
+	first := userID([]byte("12345678901234567890123456789012"), mustIP(t, "8.8.8.8"), "Example UA", "sgtm.orbztech.com.br")
+	second := userID([]byte("12345678901234567890123456789012"), mustIP(t, "8.8.8.8"), "Example UA", "sgtm.orbztech.com.br")
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.test/", nil)
-	req.RemoteAddr = "203.0.113.1:1234"
-	recorder := httptest.NewRecorder()
-
-	service.ForwardAuth(recorder, req)
-
-	if got := recorder.Result().Header.Get("X-Orbz-User-Id"); got != "" {
-		t.Fatalf("X-Orbz-User-Id = %q, want empty", got)
+	if first != second || len(first) != 64 {
+		t.Fatalf("unexpected user ID: %q", first)
 	}
+	if first == "8.8.8.8" {
+		t.Fatal("user ID exposed the IP address")
+	}
+}
+
+func TestAuthorizeReturnsNoHeaderForPrivateIP(t *testing.T) {
+	service := NewService(Config{UserIDSecret: []byte("12345678901234567890123456789012")}, nil)
+	req := httptest.NewRequest("GET", "http://enricher/auth", nil)
+	req.Header.Set("X-Forwarded-For", "10.0.1.6")
+	response := httptest.NewRecorder()
+
+	service.Handler().ServeHTTP(response, req)
+	if response.Code != 204 || response.Header().Get(HeaderUserID) != "" {
+		t.Fatalf("unexpected response: code=%d user_id=%q", response.Code, response.Header().Get(HeaderUserID))
+	}
+}
+
+func mustIP(t *testing.T, raw string) netip.Addr {
+	t.Helper()
+	ip, err := netip.ParseAddr(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ip
 }
